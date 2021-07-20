@@ -32,7 +32,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,8 +49,6 @@ import dji.common.mission.waypoint.WaypointMissionHeadingMode;
 import dji.common.mission.waypoint.WaypointMissionUploadEvent;
 import dji.common.useraccount.UserAccountState;
 import dji.common.util.CommonCallbacks;
-import dji.internal.camera.La;
-import dji.midware.data.model.P3.Ma;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.flightcontroller.FlightController;
 import dji.common.error.DJIError;
@@ -70,6 +67,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
     private Button locate, add, clear;
     private Button config, upload, start, stop;
+    private Button manualLocation;
     private TextView ConnectStatusTextView;
     private TextView current_position,point_position;
 
@@ -130,11 +128,12 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
         locate = (Button) findViewById(R.id.locate);
         add = (Button) findViewById(R.id.add);
-    F    clear = (Button) findViewById(R.id.clear);
+        clear = (Button) findViewById(R.id.clear);
         config = (Button) findViewById(R.id.config);
         upload = (Button) findViewById(R.id.upload);
         start = (Button) findViewById(R.id.start);
         stop = (Button) findViewById(R.id.stop);
+        manualLocation = (Button) findViewById(R.id.manualLocation);
 //        Display Current Position
         current_position = (TextView) findViewById(R.id.current_position);
         point_position = (TextView) findViewById(R.id.point_position);
@@ -146,6 +145,8 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         upload.setOnClickListener(this);
         start.setOnClickListener(this);
         stop.setOnClickListener(this);
+        manualLocation.setOnClickListener(this);
+
 
     }
 
@@ -347,11 +348,6 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     }
 
     private void markWaypoint(LatLng point){
-//        float   scale   =   34.236323;
-//        DecimalFormat   fnum   =   new   DecimalFormat("##0.00");
-//        String   dd=fnum.format(scale);
-//        System.out.println(dd);
-        //Create MarkerOptions object
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(point);
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
@@ -396,6 +392,10 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
                 showSettingDialog();
                 break;
             }
+            case R.id.manualLocation:{
+                showManualLocation();
+                break;
+            }
             case R.id.upload:{
                 uploadWayPointMission();
                 break;
@@ -431,7 +431,63 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         }
     }
     private void showManualLocation(){
-        
+
+        LinearLayout wayManualLocation = (LinearLayout)getLayoutInflater().inflate(R.layout.dialog_waypoint_manual_location, null);
+
+        final TextView manualLatitude = (TextView) wayManualLocation.findViewById(R.id.manualLatitude);
+        final TextView manualLongtitude = (TextView) wayManualLocation.findViewById(R.id.manuaLongtitude);
+        TextView textView7 = (TextView) wayManualLocation.findViewById(R.id.textView7);
+        TextView textView8 = (TextView) wayManualLocation.findViewById(R.id.textView8);
+
+        new AlertDialog.Builder(this)
+                .setTitle("")
+                .setView(wayManualLocation)
+                .setPositiveButton("Done",new DialogInterface.OnClickListener(){
+                    public void onClick(DialogInterface dialog, int id) {
+
+                        String latitudeString = manualLatitude.getText().toString();
+                        String longtitudeString = manualLongtitude.getText().toString();
+
+                        textView7.setText("Lat "+latitudeString);
+                        textView8.setText("Lng "+longtitudeString);
+
+                        double manualLat = Double.parseDouble(latitudeString);
+                        double manualLng = Double.parseDouble(longtitudeString);
+
+
+                        if (isAdd == true){
+                            LatLng point = new LatLng(manualLat, manualLng);
+                            markWaypoint(point);
+                            point_position.setText("Point Position \n lat : "+point.latitude+" long : "+point.longitude);
+
+                            Waypoint mWaypoint = new Waypoint(point.latitude, point.longitude, altitude);
+                            //Add Waypoints to Waypoint arraylist;
+                            if (waypointMissionBuilder != null) {
+                                point_position.setText("Point Position \n lat : "+point.latitude+" long : "+point.longitude+" ok_a");
+                                waypointList.add(mWaypoint);
+                                waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
+                            }else
+                            {
+                                point_position.setText("Point Position \n lat : "+point.latitude+" long : "+point.longitude+" ok_b");
+                                waypointMissionBuilder = new WaypointMission.Builder();
+                                waypointList.add(mWaypoint);
+                                waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
+                            }
+                        }else{
+                            setResultToToast("Cannot Add Waypoint");
+                        }
+                    }
+
+                })
+                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        dialog.cancel();
+                    }
+
+                })
+                .create()
+                .show();
+
     }
     private void showSettingDialog(){
         LinearLayout wayPointSettings = (LinearLayout)getLayoutInflater().inflate(R.layout.dialog_waypointsetting, null);
