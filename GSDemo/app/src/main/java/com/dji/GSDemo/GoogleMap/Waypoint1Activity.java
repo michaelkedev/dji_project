@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.location.Location;
+import android.location.LocationManager;
 import android.os.Build;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
@@ -30,6 +32,8 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +50,8 @@ import dji.common.mission.waypoint.WaypointMissionHeadingMode;
 import dji.common.mission.waypoint.WaypointMissionUploadEvent;
 import dji.common.useraccount.UserAccountState;
 import dji.common.util.CommonCallbacks;
+import dji.internal.camera.La;
+import dji.midware.data.model.P3.Ma;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.flightcontroller.FlightController;
 import dji.common.error.DJIError;
@@ -58,11 +64,14 @@ import dji.sdk.useraccount.UserAccountManager;
 public class Waypoint1Activity extends FragmentActivity implements View.OnClickListener, GoogleMap.OnMapClickListener, OnMapReadyCallback {
 
     protected static final String TAG = "GSDemoActivity";
+    protected static int pointCount = 1;
 
     private GoogleMap gMap;
 
     private Button locate, add, clear;
     private Button config, upload, start, stop;
+    private TextView ConnectStatusTextView;
+    private TextView current_position,point_position;
 
     private boolean isAdd = false;
 
@@ -80,6 +89,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     private WaypointMissionOperator instance;
     private WaypointMissionFinishedAction mFinishedAction = WaypointMissionFinishedAction.NO_ACTION;
     private WaypointMissionHeadingMode mHeadingMode = WaypointMissionHeadingMode.AUTO;
+
 
     @Override
     protected void onResume(){
@@ -120,11 +130,14 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
         locate = (Button) findViewById(R.id.locate);
         add = (Button) findViewById(R.id.add);
-        clear = (Button) findViewById(R.id.clear);
+    F    clear = (Button) findViewById(R.id.clear);
         config = (Button) findViewById(R.id.config);
         upload = (Button) findViewById(R.id.upload);
         start = (Button) findViewById(R.id.start);
         stop = (Button) findViewById(R.id.stop);
+//        Display Current Position
+        current_position = (TextView) findViewById(R.id.current_position);
+        point_position = (TextView) findViewById(R.id.point_position);
 
         locate.setOnClickListener(this);
         add.setOnClickListener(this);
@@ -282,6 +295,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     public void onMapClick(LatLng point) {
         if (isAdd == true){
             markWaypoint(point);
+            point_position.setText("Point Position \n lat : "+point.latitude+" long : "+point.longitude);
             Waypoint mWaypoint = new Waypoint(point.latitude, point.longitude, altitude);
             //Add Waypoints to Waypoint arraylist;
             if (waypointMissionBuilder != null) {
@@ -304,8 +318,15 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
     // Update the drone location based on states from MCU.
     private void updateDroneLocation(){
-
+        double lat, lng;
+        LocationManager lm = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+        Location location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+//        lat = location.getLatitude();
+//        lng = location.getLongitude();
+        droneLocationLat = location.getLatitude();
+        droneLocationLng = location.getLongitude();
         LatLng pos = new LatLng(droneLocationLat, droneLocationLng);
+        current_position.setText("Latitude : " + doubleToString(droneLocationLat)+" , Longtitude : " + doubleToString(droneLocationLng));
         //Create MarkerOptions object
         final MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(pos);
@@ -326,14 +347,26 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     }
 
     private void markWaypoint(LatLng point){
+//        float   scale   =   34.236323;
+//        DecimalFormat   fnum   =   new   DecimalFormat("##0.00");
+//        String   dd=fnum.format(scale);
+//        System.out.println(dd);
         //Create MarkerOptions object
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(point);
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+        markerOptions.title("Point"+pointCount).snippet("Latitude : "+doubleToString(point.latitude)+", "+doubleToString(point.longitude));
+        pointCount++;
         Marker marker = gMap.addMarker(markerOptions);
         mMarkers.put(mMarkers.size(), marker);
+
     }
 
+    private String doubleToString(double f){
+        String s;
+        DecimalFormat num = new DecimalFormat("##0.00000");
+        return s = num.format(f);
+    }
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
@@ -397,7 +430,9 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             add.setText("Add");
         }
     }
-
+    private void showManualLocation(){
+        
+    }
     private void showSettingDialog(){
         LinearLayout wayPointSettings = (LinearLayout)getLayoutInflater().inflate(R.layout.dialog_waypointsetting, null);
 
@@ -576,6 +611,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             gMap = googleMap;
             setUpMap();
         }
+
 
         LatLng shenzhen = new LatLng(22.5362, 113.9454);
         gMap.addMarker(new MarkerOptions().position(shenzhen).title("Marker in Shenzhen"));
