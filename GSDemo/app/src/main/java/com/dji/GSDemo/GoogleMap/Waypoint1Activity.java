@@ -69,7 +69,8 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     private Button config, upload, start, stop;
     private Button manualLocation;
     private TextView ConnectStatusTextView;
-    private TextView current_position,point_position;
+    private TextView current_position, point_position ;
+    private  Button camera_page;
 
     private boolean isAdd = false;
 
@@ -137,6 +138,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 //        Display Current Position
         current_position = (TextView) findViewById(R.id.current_position);
         point_position = (TextView) findViewById(R.id.point_position);
+        camera_page = (Button) findViewById(R.id.btn_camera);
 
         locate.setOnClickListener(this);
         add.setOnClickListener(this);
@@ -145,6 +147,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         upload.setOnClickListener(this);
         start.setOnClickListener(this);
         stop.setOnClickListener(this);
+        camera_page.setOnClickListener(this);
         manualLocation.setOnClickListener(this);
 
 
@@ -289,7 +292,6 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
     private void setUpMap() {
         gMap.setOnMapClickListener(this);// add the listener for click for amap object
-
     }
 
     @Override
@@ -408,17 +410,27 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
                 stopWaypointMission();
                 break;
             }
+            case R.id.btn_camera:{
+                switchCameraPage();
+                break;
+            }
             default:
                 break;
         }
     }
-
+    private void switchCameraPage(){
+//        Jump to the camera page.
+        startActivity(Waypoint1Activity.this, cameraActivity.class);
+    }
+    public static void startActivity(Context context, Class activity) {
+        Intent intent = new Intent(context, activity);
+        context.startActivity(intent);
+    }
     private void cameraUpdate(){
         LatLng pos = new LatLng(droneLocationLat, droneLocationLng);
         float zoomlevel = (float) 18.0;
         CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(pos, zoomlevel);
         gMap.moveCamera(cu);
-
     }
 
     private void enableDisableAdd(){

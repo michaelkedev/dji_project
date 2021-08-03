@@ -73,24 +73,37 @@
             android:text="Stop"
             android:layout_weight="1"/>
     </LinearLayout>
-
-    <Button
-        android:id="@+id/manualLocation"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Manaul Location" />
+        android:layout_height="wrap_content">
+
+        <Button
+            android:id="@+id/manualLocation"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="Manaul Location" />
+
+        <Button
+            android:id="@+id/btn_camera"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="Camera"/>
+
+    </LinearLayout>
+
+
 
     <TextView
         android:id="@+id/current_position"
         android:layout_width="match_parent"
         android:layout_height="32dp"
-        android:text="TextView" />
+        android:text=""/>
 
     <TextView
         android:id="@+id/point_position"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="TextView" />
+        android:text=""/>
 
     <fragment
         android:id="@+id/map"

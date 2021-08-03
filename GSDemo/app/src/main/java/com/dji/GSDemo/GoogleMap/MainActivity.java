@@ -15,7 +15,7 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(MainActivity.this, Waypoint1Activity.class);
                 break;
             case R.id.btn_waypoint2:
-                startActivity(MainActivity.this, Waypoint2Activity.class);
+                startActivity(MainActivity.this, cameraActivity.class);
                 break;
         }
     };
