@@ -5,13 +5,22 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
+import android.os.Environment;
+import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import butterknife.OnClick;
 import dji.common.camera.SettingsDefinitions;
@@ -29,8 +38,8 @@ import dji.sdk.sdkmanager.DJISDKManager;
 public class cameraActivity extends AppCompatActivity implements View.OnClickListener {
     private TextureView textureFPV;
 
-    private Button btnBack, btnRecord, btnShoot;
-    private TextView textViewCameraMode, textViewDebug;
+    private Button btnBack, btnRecord, btnShoot, btnSwitchMode;
+    private TextView textViewCameraMode, textViewDebug, textViewTemp, textViewSize;
 
     private DJICodecManager mCodeManager;
     private SettingsDefinitions.CameraMode mCameraMode;
@@ -38,6 +47,8 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     private int mRecordingSec;
     private VideoFeeder.VideoDataListener mVideoDataListener;
 
+    private int tv_wid, tv_hei;
+    private byte[] rgba;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,10 +70,12 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnBack = findViewById(R.id.btn_back);
         btnRecord = findViewById(R.id.btn_record);
         btnShoot = findViewById(R.id.btn_shoot);
+        btnSwitchMode = findViewById(R.id.btn_swtichMode);
 
         textViewDebug = findViewById(R.id.textView_debug);
         textViewCameraMode = findViewById(R.id.textView_camera_mode);
-
+        textViewTemp = findViewById(R.id.temp);
+        textViewSize = findViewById(R.id.textView_size);
     }
 
     private void initCamera(){
@@ -153,8 +166,10 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                         camera.startShootPhoto(new CommonCallbacks.CompletionCallback() {
                             @Override
                             public void onResult(DJIError djiError) {
-                                if(djiError == null)
+                                if(djiError == null){
                                     showToast("Successful !");
+                                    downloadPicture();
+                                }
                                 else
                                     showToast("Error : "+djiError.getDescription());
                             }
@@ -189,7 +204,37 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         Toast toast = Toast.makeText(context, text, duration);
         toast.show();
     }
+    private void downloadPicture(){
+        try {
+            Log.i("Info", "In download.");
+            int temp_wid, temp_hei;
+            temp_hei=100;
+            temp_wid=100;
+            byte[] temp = mCodeManager.getRgbaData(temp_hei, temp_wid);
 
+//            String str = new String(bytes, StandardCharsets.UTF_8);
+            Log.i("Data", "Display Data"+temp.toString() + " , Length : "+ temp.length);
+
+            Bitmap bitmap = Bitmap.createBitmap(temp_hei, temp_wid , Bitmap.Config.ARGB_8888);
+            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(temp_hei, temp_wid));
+            bitmap.copyPixelsFromBuffer(buf);
+
+            String tempDir = Environment.getExternalStorageDirectory().getAbsolutePath()+"/Download/" +
+                    "";
+            Log.i("Print Temp File Path", tempDir);
+            String strFileName = "photo.jpg";
+//
+            File file=new File(tempDir, strFileName);
+            Log.i("Print File Path", "Path : "+file.toString() );
+            FileOutputStream fos = new FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+            fos.flush();
+            fos.close();
+
+        }catch (Error | IOException e){
+            Log.e("Download Picture Error", "Error"+e);
+        }
+    }
     private void updateCameraMode(){
         runOnUiThread(new Runnable() {
             @Override
@@ -225,12 +270,17 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         }
     }
     private void initListener(){
-
         textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
+                tv_hei=height;
+                tv_wid=width;
+                textViewSize.setText("Wid : "+tv_wid+" , Hei" +tv_hei);
                 if(mCodeManager == null){
                     mCodeManager = new DJICodecManager(cameraActivity.this, surface, width, height);
+                }
+                else{
+                   mCodeManager.getRgbaData(width, height);
                 }
             }
 
@@ -257,6 +307,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnBack.setOnClickListener(this);
         btnShoot.setOnClickListener(this);
         btnRecord.setOnClickListener(this);
+        btnSwitchMode.setOnClickListener(this);
 
         mVideoDataListener = new VideoFeeder.VideoDataListener() {
             @Override
@@ -293,6 +344,9 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             case R.id.btn_record:
                 record();
                 break;
+            case R.id.btn_swtichMode:
+                final Camera camera = getCamera();
+                setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
             default:
                 break;
         }
