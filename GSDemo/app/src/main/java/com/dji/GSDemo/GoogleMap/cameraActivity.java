@@ -2,13 +2,23 @@ package com.dji.GSDemo.GoogleMap;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.SurfaceTexture;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
@@ -16,11 +26,26 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 import butterknife.OnClick;
 import dji.common.camera.SettingsDefinitions;
@@ -28,6 +53,7 @@ import dji.common.camera.SystemState;
 import dji.common.error.DJIError;
 import dji.common.util.CommonCallbacks;
 import dji.midware.data.model.P3.Ca;
+import dji.midware.data.model.P3.Da;
 import dji.midware.data.model.P3.S;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
@@ -36,19 +62,39 @@ import dji.sdk.codec.DJICodecManager;
 import dji.sdk.sdkmanager.DJISDKManager;
 
 public class cameraActivity extends AppCompatActivity implements View.OnClickListener {
-    private TextureView textureFPV;
 
-    private Button btnBack, btnRecord, btnShoot, btnSwitchMode;
+    private TextureView textureFPV;
+    private Button btnBack, btnRecord, btnShoot, btnSwitchMode,btnStream;
     private TextView textViewCameraMode, textViewDebug, textViewTemp, textViewSize;
 
     private DJICodecManager mCodeManager;
     private SettingsDefinitions.CameraMode mCameraMode;
     private Boolean mIsCameraRecording;
-    private int mRecordingSec;
     private VideoFeeder.VideoDataListener mVideoDataListener;
 
+    private int mRecordingSec;
     private int tv_wid, tv_hei;
     private byte[] rgba;
+    private List<String> missingPermission = new ArrayList<>();
+
+    private static final int REQUEST_PERMISSION_CODE = 12345;
+
+    private static final String[] REQUIRED_PERMISSION_LIST = new String[]{
+            android.Manifest.permission.VIBRATE,
+            android.Manifest.permission.INTERNET,
+            android.Manifest.permission.ACCESS_WIFI_STATE,
+            android.Manifest.permission.WAKE_LOCK,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.CHANGE_WIFI_STATE,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.BLUETOOTH,
+            android.Manifest.permission.BLUETOOTH_ADMIN,
+            android.Manifest.permission.READ_PHONE_STATE,
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -57,6 +103,8 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         initUI();
         initListener();
         initCamera();
+
+        checkAndRequestPermissions();
     }
     @Override
     protected void onDestroy(){
@@ -71,10 +119,10 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnRecord = findViewById(R.id.btn_record);
         btnShoot = findViewById(R.id.btn_shoot);
         btnSwitchMode = findViewById(R.id.btn_swtichMode);
+        btnStream = findViewById(R.id.btn_Stream);
 
         textViewDebug = findViewById(R.id.textView_debug);
         textViewCameraMode = findViewById(R.id.textView_camera_mode);
-        textViewTemp = findViewById(R.id.temp);
         textViewSize = findViewById(R.id.textView_size);
     }
 
@@ -91,6 +139,26 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 }
             });
             showToast("Init Camera.");
+        }
+    }
+
+    /**
+     * Checks if there is any missing permissions, and
+     * requests runtime permission if needed.
+     */
+
+    private void checkAndRequestPermissions() {
+        // Check for permissions
+        for (String eachPermission : REQUIRED_PERMISSION_LIST) {
+            if (ContextCompat.checkSelfPermission(this, eachPermission) != PackageManager.PERMISSION_GRANTED) {
+                missingPermission.add(eachPermission);
+            }
+        }
+        // Request for missing permissions
+        if (!missingPermission.isEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            ActivityCompat.requestPermissions(this,
+                    missingPermission.toArray(new String[missingPermission.size()]),
+                    REQUEST_PERMISSION_CODE);
         }
     }
 
@@ -111,7 +179,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             }
             else{
                 startRecording(camera);
-                showToast("Stop Recroding.");
+                showToast("Stop Recording.");
             }
         }
     }
@@ -135,9 +203,11 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             public void onResult(DJIError djiError) {
                 if(djiError==null){
                     showToast("Successful to Stop Recording. ");
+                    Log.i("Record","Successful");
                 }
                 else{
                     showToast("Error : "+ djiError.getDescription());
+                    Log.e("Record","Error :"+ djiError.getDescription());
                 }
             }
         });
@@ -150,11 +220,11 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             if(mCameraMode!=SettingsDefinitions.CameraMode.SHOOT_PHOTO){
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
 
-//                updateCameraMode();
                 textViewDebug.setText("Debug : take Picture()"+cameraModeToString(mCameraMode));
 
                 if(mCameraMode != SettingsDefinitions.CameraMode.SHOOT_PHOTO){
-                    showToast("Not Under SHOOT Mode. Try Again.");
+                    showToast("Not SHOOT Mode. Please Try Again.");
+                    Log.w("Shoot","Not SHOOT Mode.");
                     return;
                 }
             }
@@ -168,7 +238,10 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                             public void onResult(DJIError djiError) {
                                 if(djiError == null){
                                     showToast("Successful !");
-                                    downloadPicture();
+                                    Log.i("Shoot", "Successful");
+
+                                    Context context = cameraActivity.this;
+                                    downloadPicture(context);
                                 }
                                 else
                                     showToast("Error : "+djiError.getDescription());
@@ -204,37 +277,104 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         Toast toast = Toast.makeText(context, text, duration);
         toast.show();
     }
-    private void downloadPicture(){
+    //Download picture to internal devices
+    private void downloadPicture(Context context){
         try {
-            Log.i("Info", "In download.");
-            int temp_wid, temp_hei;
-            temp_hei=100;
-            temp_wid=100;
-            byte[] temp = mCodeManager.getRgbaData(temp_hei, temp_wid);
+            if(ContextCompat.checkSelfPermission(this , android.Manifest.permission.WRITE_EXTERNAL_STORAGE ) == PackageManager.PERMISSION_GRANTED){
 
-//            String str = new String(bytes, StandardCharsets.UTF_8);
-            Log.i("Data", "Display Data"+temp.toString() + " , Length : "+ temp.length);
+                int photoWidth = 1920, photoHeight = 1080;
+                byte[] temp = mCodeManager.getRgbaData(photoHeight, photoWidth);
 
-            Bitmap bitmap = Bitmap.createBitmap(temp_hei, temp_wid , Bitmap.Config.ARGB_8888);
-            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(temp_hei, temp_wid));
-            bitmap.copyPixelsFromBuffer(buf);
+                Bitmap bitmap = Bitmap.createBitmap(photoHeight, photoWidth , Bitmap.Config.ARGB_8888);
+                ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoHeight, photoWidth));
+                bitmap.copyPixelsFromBuffer(buf);
 
-            String tempDir = Environment.getExternalStorageDirectory().getAbsolutePath()+"/Download/" +
-                    "";
-            Log.i("Print Temp File Path", tempDir);
-            String strFileName = "photo.jpg";
-//
-            File file=new File(tempDir, strFileName);
-            Log.i("Print File Path", "Path : "+file.toString() );
-            FileOutputStream fos = new FileOutputStream(file);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-            fos.flush();
-            fos.close();
 
-        }catch (Error | IOException e){
-            Log.e("Download Picture Error", "Error"+e);
+                OutputStream fos;
+                Date c = Calendar.getInstance().getTime();
+                SimpleDateFormat df = new SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault());
+                String fileName = df.format(c);
+                String mimeType = "image/jpg";
+
+//                Over sdk version 29
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    Log.i("sdkVersion", "");
+
+                    ContentResolver resolver = getContentResolver();
+                    ContentValues contentValues = new ContentValues();
+                    contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName+".jpg");
+                    contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg");
+                    contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
+                    Uri imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
+
+                    fos = resolver.openOutputStream(Objects.requireNonNull(imageUri));
+                } else {
+                    Log.i("sdkVersion", "else");
+                    String imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString();
+                    File image = new File(imagesDir, fileName + ".jpg");
+                    fos = new FileOutputStream(image);
+                }
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+                Objects.requireNonNull(fos).close();
+            }
+            else{
+                showToast("Please checkout your permission.");
+                Log.e("Saving", "Please checkout your permission.");
+            }
+        }catch (Error | FileNotFoundException e){
+            showToast(e.toString());
+            e.printStackTrace();
+            Log.e("Saving", "Error"+e);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
+    private void transmitPhotoToDesktop(){
+        showToast("Function TransmitPhotoToDesktop.");
+        new Thread(){
+                String ipAddress = "10.10.11.217";
+                final int port = 5000;
+                public void run(){
+                    try{
+                        Socket socket = new Socket(ipAddress,port);
+                        DataOutputStream stream = new DataOutputStream(socket.getOutputStream());
+
+                        sendTextMsg(stream, "From Mobile Device.");
+
+                        stream.close();
+                        socket.close();
+
+                        showToast("Socket is End.");
+                    }catch (Exception e){
+                        Log.e("socket_error", e.toString());
+                    }
+                }
+        }.start();
+
+    }
+    private void sendTextMsg(DataOutputStream stream, String msg) throws IOException {
+
+        byte[] bytes = msg.getBytes();
+        long len = bytes.length;
+
+        stream.writeLong(len);
+        stream.write(bytes);
+    }
+    private void sendImgMsg(DataOutputStream stream) throws IOException {
+
+        Log.i("sendImgMsg", "len: "+"1");
+        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher);
+
+        Log.i("sendImgMsg", "len: "+"2");
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG,80,bout);
+
+        long len = bout.size();
+
+        Log.i("sendImgMsg", "len: "+len);
+        stream.write(bout.toByteArray());
+    }
+
     private void updateCameraMode(){
         runOnUiThread(new Runnable() {
             @Override
@@ -264,7 +404,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             case BROADCAST:
                 return "Broadcast Mode";
             case UNKNOWN:
-                return "!!!!!!!!!!!UNKOWN!!!!!!!!!!!";
+                return "UNKOWN";
             default:
                 return "Nothing";
         }
@@ -308,6 +448,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnShoot.setOnClickListener(this);
         btnRecord.setOnClickListener(this);
         btnSwitchMode.setOnClickListener(this);
+        btnStream.setOnClickListener(this);
 
         mVideoDataListener = new VideoFeeder.VideoDataListener() {
             @Override
@@ -347,6 +488,9 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             case R.id.btn_swtichMode:
                 final Camera camera = getCamera();
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
+            case R.id.btn_Stream:
+                showToast("Stream");
+                transmitPhotoToDesktop();
             default:
                 break;
         }

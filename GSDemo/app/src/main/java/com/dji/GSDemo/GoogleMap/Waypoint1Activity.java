@@ -329,7 +329,8 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         droneLocationLat = location.getLatitude();
         droneLocationLng = location.getLongitude();
         LatLng pos = new LatLng(droneLocationLat, droneLocationLng);
-        current_position.setText("Latitude : " + doubleToString(droneLocationLat)+" , Longtitude : " + doubleToString(droneLocationLng));
+//        current_position.setText("Latitude : " + doubleToString(droneLocationLat)+" , Longtitude : " + doubleToString(droneLocationLng));
+        //Create MarkerOptions object
         //Create MarkerOptions object
         final MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(pos);
