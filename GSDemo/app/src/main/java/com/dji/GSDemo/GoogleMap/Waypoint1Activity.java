@@ -358,7 +358,6 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         pointCount++;
         Marker marker = gMap.addMarker(markerOptions);
         mMarkers.put(mMarkers.size(), marker);
-
     }
 
     private String doubleToString(double f){
@@ -680,8 +679,6 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             gMap = googleMap;
             setUpMap();
         }
-
-
         LatLng shenzhen = new LatLng(22.5362, 113.9454);
         gMap.addMarker(new MarkerOptions().position(shenzhen).title("Marker in Shenzhen"));
         gMap.moveCamera(CameraUpdateFactory.newLatLng(shenzhen));

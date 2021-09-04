@@ -1,6 +1,7 @@
 package com.dji.GSDemo.GoogleMap;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -26,6 +27,8 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -33,7 +36,11 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -41,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -60,6 +68,8 @@ import dji.sdk.camera.Camera;
 import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
 import dji.sdk.sdkmanager.DJISDKManager;
+import dji.thirdparty.sanselan.formats.tiff.TiffReader;
+
 
 public class cameraActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -109,7 +119,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     @Override
     protected void onDestroy(){
         super.onDestroy();
-        removeListener();;
+        removeListener();
     }
 
     private void initUI(){
@@ -141,11 +151,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             showToast("Init Camera.");
         }
     }
-
-    /**
-     * Checks if there is any missing permissions, and
-     * requests runtime permission if needed.
-     */
 
     private void checkAndRequestPermissions() {
         // Check for permissions
@@ -212,6 +217,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             }
         });
     }
+
     private void takePicture(){
         showToast("take picture.");
         final Camera camera = getCamera();
@@ -279,101 +285,152 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     }
     //Download picture to internal devices
     private void downloadPicture(Context context){
-        try {
-            if(ContextCompat.checkSelfPermission(this , android.Manifest.permission.WRITE_EXTERNAL_STORAGE ) == PackageManager.PERMISSION_GRANTED){
+        new Thread(){
+            @Override
+            public void run() {
+                try {
+                    if(ContextCompat.checkSelfPermission(context , android.Manifest.permission.WRITE_EXTERNAL_STORAGE ) == PackageManager.PERMISSION_GRANTED){
 
-                int photoWidth = 1920, photoHeight = 1080;
-                byte[] temp = mCodeManager.getRgbaData(photoHeight, photoWidth);
+                        //Todo : PhotoWidth & PhotoHeight must to be check
+                        int photoWidth = 1920, photoHeight = 1080;
 
-                Bitmap bitmap = Bitmap.createBitmap(photoHeight, photoWidth , Bitmap.Config.ARGB_8888);
-                ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoHeight, photoWidth));
-                bitmap.copyPixelsFromBuffer(buf);
+                        Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888);
+//                ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoHeight, photoWidth));
+                        ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight));
+                        bitmap.copyPixelsFromBuffer(buf);
 
 
-                OutputStream fos;
-                Date c = Calendar.getInstance().getTime();
-                SimpleDateFormat df = new SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault());
-                String fileName = df.format(c);
-                String mimeType = "image/jpg";
+                        OutputStream fos;
+                        Date c = Calendar.getInstance().getTime();
+                        SimpleDateFormat df = new SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault());
+                        String fileName = df.format(c);
+                        String mimeType = "image/jpg";
 
 //                Over sdk version 29
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    Log.i("sdkVersion", "");
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            ContentResolver resolver = getContentResolver();
+                            ContentValues contentValues = new ContentValues();
+                            contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName+".jpg");
+                            contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg");
+                            contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
+                            Uri imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
 
-                    ContentResolver resolver = getContentResolver();
-                    ContentValues contentValues = new ContentValues();
-                    contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName+".jpg");
-                    contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg");
-                    contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
-                    Uri imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
-
-                    fos = resolver.openOutputStream(Objects.requireNonNull(imageUri));
-                } else {
-                    Log.i("sdkVersion", "else");
-                    String imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString();
-                    File image = new File(imagesDir, fileName + ".jpg");
-                    fos = new FileOutputStream(image);
-                }
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
-                Objects.requireNonNull(fos).close();
-            }
-            else{
-                showToast("Please checkout your permission.");
-                Log.e("Saving", "Please checkout your permission.");
-            }
-        }catch (Error | FileNotFoundException e){
-            showToast(e.toString());
-            e.printStackTrace();
-            Log.e("Saving", "Error"+e);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-    private void transmitPhotoToDesktop(){
-        showToast("Function TransmitPhotoToDesktop.");
-        new Thread(){
-                String ipAddress = "10.10.11.217";
-                final int port = 5000;
-                public void run(){
-                    try{
-                        Socket socket = new Socket(ipAddress,port);
-                        DataOutputStream stream = new DataOutputStream(socket.getOutputStream());
-
-                        sendTextMsg(stream, "From Mobile Device.");
-
-                        stream.close();
-                        socket.close();
-
-                        showToast("Socket is End.");
-                    }catch (Exception e){
-                        Log.e("socket_error", e.toString());
+                            fos = resolver.openOutputStream(Objects.requireNonNull(imageUri));
+                        } else {
+                            Log.i("sdkVersion", "else");
+                            String imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString();
+                            File image = new File(imagesDir, fileName + ".jpg");
+                            fos = new FileOutputStream(image);
+                        }
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+                        Objects.requireNonNull(fos).close();
                     }
+                    else{
+                        showToast("Please checkout your permission.");
+                        Log.e("Saving", "Please checkout your permission.");
+                    }
+                }catch (Error | FileNotFoundException e){
+                    showToast(e.toString());
+                    e.printStackTrace();
+                    Log.e("Saving", "Error"+e);
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
+            }
         }.start();
 
     }
-    private void sendTextMsg(DataOutputStream stream, String msg) throws IOException {
 
-        byte[] bytes = msg.getBytes();
-        long len = bytes.length;
-
-        stream.writeLong(len);
-        stream.write(bytes);
+    private void socketConnection(){
+        String ipAddress = "10.10.11.217";
     }
-    private void sendImgMsg(DataOutputStream stream) throws IOException {
 
-        Log.i("sendImgMsg", "len: "+"1");
-        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher);
-
-        Log.i("sendImgMsg", "len: "+"2");
-        ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG,80,bout);
-
-        long len = bout.size();
-
-        Log.i("sendImgMsg", "len: "+len);
-        stream.write(bout.toByteArray());
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private String base64(byte[] inputBytes){
+        return Base64.getEncoder().encodeToString(inputBytes);
     }
+    private void socketConnectTest(){
+        new Thread(){
+            String ipAddress = "10.10.11.217";
+            final  int port = 8888;
+
+            @Override
+            public void run() {
+                try{
+                    Socket socket = new Socket(ipAddress, port);
+                    DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
+                    BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+
+                    Log.i("Socket", "Test");
+                    int count = 0;
+                    while(true){
+                        Log.i("Socket", Integer.toString(count));
+                        count += 1;
+                    }
+
+                }catch (Exception e ){
+                    Log.i("Socket_err", e.toString());
+                }
+            }
+        }.start();
+    }
+    private void Test(){
+        new Thread(){
+            String ipAddress = "10.10.11.217";
+            final int port = 9999;
+            @Override
+            public void run() {
+                    try{
+                        Socket socket = new Socket(ipAddress,port);
+
+                        DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
+                        BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+//                        OutputStream outputStream = socket.getOutputStream();
+//                        PrintWriter pWriter = new PrintWriter(outputStream);
+                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+
+                        int photoWidth = 1920, photoHeight = 1080;
+
+                        String readMsg="";
+
+                        while (true){
+                            Log.i("send_image", "loop");
+
+                            Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888);
+                            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight));
+                            bitmap.copyPixelsFromBuffer(buf);
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteStream);
+
+                            byte[] imageBytes = byteStream.toByteArray();
+
+                            int imageSize = imageBytes .length;
+
+                            streamBW.write(Integer.toString(imageBytes .length));
+                            streamBW.flush();
+                            Log.i("send_image", Integer.toString(imageBytes .length));
+//                                readLine = in.readLine();
+                            streamDO.write(imageBytes);
+                            streamDO.flush();
+                            byteStream.reset();
+                            Log.i("send_image", "ok");
+                        }
+                    } catch (UnsupportedEncodingException e) {
+                        Log.i("send_image", e.toString());
+                    } catch (UnknownHostException e) {
+                        Log.i("send_image", e.toString());
+                    } catch (IOException e) {
+                        Log.i("send_image", e.toString());
+                    }
+            }
+
+        }.start();
+    }
+//    private void sendTextMsg( DataOutput stream, String msg) throws IOException {
+//        byte[] bytes = msg.getBytes();
+//        stream.write(bytes);
+//    }
+
 
     private void updateCameraMode(){
         runOnUiThread(new Runnable() {
@@ -391,6 +448,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             }
         });
     }
+
     private String cameraModeToString(SettingsDefinitions.CameraMode cameraMode){
         switch (cameraMode){
             case SHOOT_PHOTO:
@@ -409,6 +467,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 return "Nothing";
         }
     }
+
     private void initListener(){
         textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
@@ -490,7 +549,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
             case R.id.btn_Stream:
                 showToast("Stream");
-                transmitPhotoToDesktop();
+                Test();
             default:
                 break;
         }
@@ -512,4 +571,5 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         }
         return null;
     }
+
 }
