@@ -74,7 +74,7 @@ import dji.thirdparty.sanselan.formats.tiff.TiffReader;
 public class cameraActivity extends AppCompatActivity implements View.OnClickListener {
 
     private TextureView textureFPV;
-    private Button btnBack, btnRecord, btnShoot, btnSwitchMode,btnStream;
+    private Button btnBack, btnRecord, btnShoot, btnSwitchMode, btnStartStream, btnStopStream;
     private TextView textViewCameraMode, textViewDebug, textViewTemp, textViewSize;
 
     private DJICodecManager mCodeManager;
@@ -123,13 +123,15 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     private void initUI(){
+
         textureFPV = findViewById(R.id.texture_fpv);
 
         btnBack = findViewById(R.id.btn_back);
         btnRecord = findViewById(R.id.btn_record);
         btnShoot = findViewById(R.id.btn_shoot);
         btnSwitchMode = findViewById(R.id.btn_swtichMode);
-        btnStream = findViewById(R.id.btn_Stream);
+        btnStartStream = findViewById(R.id.btn_Stream);
+        btnStopStream = findViewById(R.id.btn_stopStream);
 
         textViewDebug = findViewById(R.id.textView_debug);
         textViewCameraMode = findViewById(R.id.textView_camera_mode);
@@ -151,7 +153,60 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             showToast("Init Camera.");
         }
     }
+    private void initListener(){
+        textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
+                tv_hei=height;
+                tv_wid=width;
+                textViewSize.setText("Wid : "+tv_wid+" , Hei" +tv_hei);
+                if(mCodeManager == null){
+                    mCodeManager = new DJICodecManager(cameraActivity.this, surface, width, height);
+                }
+                else{
+                    mCodeManager.getRgbaData(width, height);
+                }
+            }
 
+            @Override
+            public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
+
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
+                if(mCodeManager != null){
+                    mCodeManager.cleanSurface();
+                    mCodeManager = null ;
+                }
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
+
+            }
+        });
+
+        btnBack.setOnClickListener(this);
+        btnShoot.setOnClickListener(this);
+        btnRecord.setOnClickListener(this);
+        btnSwitchMode.setOnClickListener(this);
+        btnStartStream.setOnClickListener(this);
+        btnStopStream.setOnClickListener(this);
+
+        mVideoDataListener = new VideoFeeder.VideoDataListener() {
+            @Override
+            public void onReceive(byte[] bytes, int i) {
+                if(mCodeManager != null){
+                    mCodeManager.sendDataToDecoder(bytes, i);
+                }
+            }
+        };
+
+        VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(mVideoDataListener);
+
+    }
     private void checkAndRequestPermissions() {
         // Check for permissions
         for (String eachPermission : REQUIRED_PERMISSION_LIST) {
@@ -168,7 +223,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     private void record(){
-        showToast("Record.");
         final  Camera camera = getCamera();
         if(camera!=null){
             if(mCameraMode!= SettingsDefinitions.CameraMode.RECORD_VIDEO){
@@ -219,7 +273,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     private void takePicture(){
-        showToast("take picture.");
         final Camera camera = getCamera();
         if(camera != null){
 //            Turns the mode into "SHOOT_PHOTO"
@@ -341,96 +394,67 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
     }
 
-    private void socketConnection(){
-        String ipAddress = "10.10.11.217";
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    private String base64(byte[] inputBytes){
-        return Base64.getEncoder().encodeToString(inputBytes);
-    }
-    private void socketConnectTest(){
+    private void videoStream(){
+        btnStartStream.setVisibility(View.GONE);
+        btnStopStream.setVisibility(View.VISIBLE);
         new Thread(){
-            String ipAddress = "10.10.11.217";
-            final  int port = 8888;
-
             @Override
             public void run() {
-                try{
-                    Socket socket = new Socket(ipAddress, port);
-                    DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
-                    BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-
-                    Log.i("Socket", "Test");
-                    int count = 0;
-                    while(true){
-                        Log.i("Socket", Integer.toString(count));
-                        count += 1;
-                    }
-
-                }catch (Exception e ){
-                    Log.i("Socket_err", e.toString());
-                }
-            }
-        }.start();
-    }
-    private void Test(){
-        new Thread(){
-            String ipAddress = "10.10.11.217";
-            final int port = 9999;
-            @Override
-            public void run() {
+                while(true){
                     try{
-                        Socket socket = new Socket(ipAddress,port);
-
-                        DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
-                        BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-//                        OutputStream outputStream = socket.getOutputStream();
-//                        PrintWriter pWriter = new PrintWriter(outputStream);
-                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
                         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
 
                         int photoWidth = 1920, photoHeight = 1080;
 
-                        String readMsg="";
-
-                        while (true){
+                        while (btnStopStream.getVisibility()==View.VISIBLE){
                             Log.i("send_image", "loop");
+
+                            String ipAddress = "10.10.11.217";
+                            final int port = 8888;
+                            Socket socket = new Socket(ipAddress,port);
+
+                            DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
+                            BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+
 
                             Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888);
                             ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight));
                             bitmap.copyPixelsFromBuffer(buf);
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteStream);
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 20, byteStream);
 
                             byte[] imageBytes = byteStream.toByteArray();
 
                             int imageSize = imageBytes .length;
-
                             streamBW.write(Integer.toString(imageBytes .length));
                             streamBW.flush();
                             Log.i("send_image", Integer.toString(imageBytes .length));
-//                                readLine = in.readLine();
                             streamDO.write(imageBytes);
                             streamDO.flush();
                             byteStream.reset();
-                            Log.i("send_image", "ok");
+                            socket.close();
+                            Thread.sleep(32);
                         }
+//                        Thread.interrupted();
+                        Log.i("socket_image", "stop");
+                        break;
                     } catch (UnsupportedEncodingException e) {
-                        Log.i("send_image", e.toString());
+                        Log.i("send_image_Unsupported", e.toString());
                     } catch (UnknownHostException e) {
-                        Log.i("send_image", e.toString());
+                        Log.i("send_image_Unknown", e.toString());
                     } catch (IOException e) {
-                        Log.i("send_image", e.toString());
+                        Log.i("send_image_IOE", e.toString());
+                    } catch (InterruptedException e) {
+                        Log.i("send_image_Interrupted", e.toString());
                     }
+                }
             }
-
         }.start();
     }
 //    private void sendTextMsg( DataOutput stream, String msg) throws IOException {
 //        byte[] bytes = msg.getBytes();
 //        stream.write(bytes);
 //    }
-
 
     private void updateCameraMode(){
         runOnUiThread(new Runnable() {
@@ -468,61 +492,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         }
     }
 
-    private void initListener(){
-        textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-            @Override
-            public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
-                tv_hei=height;
-                tv_wid=width;
-                textViewSize.setText("Wid : "+tv_wid+" , Hei" +tv_hei);
-                if(mCodeManager == null){
-                    mCodeManager = new DJICodecManager(cameraActivity.this, surface, width, height);
-                }
-                else{
-                   mCodeManager.getRgbaData(width, height);
-                }
-            }
-
-            @Override
-            public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
-
-            }
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
-                if(mCodeManager != null){
-                    mCodeManager.cleanSurface();
-                    mCodeManager = null ;
-                }
-                return false;
-            }
-
-            @Override
-            public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-
-            }
-        });
-
-        btnBack.setOnClickListener(this);
-        btnShoot.setOnClickListener(this);
-        btnRecord.setOnClickListener(this);
-        btnSwitchMode.setOnClickListener(this);
-        btnStream.setOnClickListener(this);
-
-        mVideoDataListener = new VideoFeeder.VideoDataListener() {
-            @Override
-            public void onReceive(byte[] bytes, int i) {
-                if(mCodeManager != null){
-                    mCodeManager.sendDataToDecoder(bytes, i);
-                }
-            }
-        };
-
-        VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(mVideoDataListener);
-
-    }
-
-
     private void removeListener(){
 
         VideoFeeder.getInstance().getPrimaryVideoFeed().removeVideoDataListener(mVideoDataListener);
@@ -531,6 +500,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         if(camera!=null)
             camera.setSystemStateCallback(null);
     }
+
     public void onClick(View v){
         switch(v.getId()){
             case R.id.btn_back:
@@ -538,23 +508,32 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 break;
             case R.id.btn_shoot:
                 textViewDebug.setText("Debug : Shooting .");
-                showToast("shoot");
+                showToast("Taking picture.");
                 takePicture();
                 break;
             case R.id.btn_record:
+                showToast("Recording");
                 record();
                 break;
             case R.id.btn_swtichMode:
                 final Camera camera = getCamera();
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
             case R.id.btn_Stream:
-                showToast("Stream");
-                Test();
+                showToast("Images are being transmitted");
+                videoStream();
+                break;
+            case R.id.btn_stopStream:
+                stopStream();
             default:
                 break;
         }
     }
-//    Back to waypoint1 page
+    private void stopStream() {
+            btnStopStream.setVisibility(View.GONE);
+            btnStartStream.setVisibility(View.VISIBLE);
+    }
+
+    //    Back to waypoint1 page
     private void back(){
         startActivity(cameraActivity.this, Waypoint1Activity.class);
         this.finish();
