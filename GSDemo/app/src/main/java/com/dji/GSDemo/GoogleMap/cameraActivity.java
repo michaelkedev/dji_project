@@ -1,7 +1,6 @@
 package com.dji.GSDemo.GoogleMap;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -9,11 +8,9 @@ import androidx.core.content.ContextCompat;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.SurfaceTexture;
 import android.net.Uri;
 import android.os.Build;
@@ -30,7 +27,6 @@ import android.widget.Toast;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -39,43 +35,34 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import butterknife.OnClick;
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
 import dji.common.error.DJIError;
 import dji.common.util.CommonCallbacks;
-import dji.midware.data.model.P3.Ca;
-import dji.midware.data.model.P3.Da;
-import dji.midware.data.model.P3.S;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
 import dji.sdk.camera.VideoFeeder;
 import dji.sdk.codec.DJICodecManager;
 import dji.sdk.sdkmanager.DJISDKManager;
-import dji.thirdparty.sanselan.formats.tiff.TiffReader;
 
 
 public class cameraActivity extends AppCompatActivity implements View.OnClickListener {
 
     private TextureView textureFPV;
     private Button btnBack, btnRecord, btnShoot, btnSwitchMode, btnStartStream, btnStopStream;
-    private TextView textViewCameraMode, textViewDebug, textViewTemp, textViewSize;
+    private TextView textViewCameraMode, textViewIP, textViewTemp;
 
     private DJICodecManager mCodeManager;
     private SettingsDefinitions.CameraMode mCameraMode;
@@ -133,9 +120,8 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnStartStream = findViewById(R.id.btn_Stream);
         btnStopStream = findViewById(R.id.btn_stopStream);
 
-        textViewDebug = findViewById(R.id.textView_debug);
+        textViewIP = findViewById(R.id.tv_ip);
         textViewCameraMode = findViewById(R.id.textView_camera_mode);
-        textViewSize = findViewById(R.id.textView_size);
     }
 
     private void initCamera(){
@@ -159,7 +145,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
                 tv_hei=height;
                 tv_wid=width;
-                textViewSize.setText("Wid : "+tv_wid+" , Hei" +tv_hei);
                 if(mCodeManager == null){
                     mCodeManager = new DJICodecManager(cameraActivity.this, surface, width, height);
                 }
@@ -230,8 +215,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 if(mCameraMode != SettingsDefinitions.CameraMode.RECORD_VIDEO)
                     showToast("Not Record Mode. ");
             }
-//            updateCameraMode();
-            textViewDebug.setText("Debug : Recording , Mode"+cameraModeToString(mCameraMode));
             if(mIsCameraRecording){
                 stopRecording(camera);
                 showToast("Start Recording.");
@@ -278,8 +261,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 //            Turns the mode into "SHOOT_PHOTO"
             if(mCameraMode!=SettingsDefinitions.CameraMode.SHOOT_PHOTO){
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
-
-                textViewDebug.setText("Debug : take Picture()"+cameraModeToString(mCameraMode));
 
                 if(mCameraMode != SettingsDefinitions.CameraMode.SHOOT_PHOTO){
                     showToast("Not SHOOT Mode. Please Try Again.");
@@ -400,6 +381,12 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         new Thread(){
             @Override
             public void run() {
+//                String ipAddress = "10.10.131.190";
+                String ipAddress = "10.10.11.62";
+                final int port = 8888;
+                textViewIP.setText(ipAddress+":"+Integer.toString(port));
+
+//120 - 130 ms（受拍攝環境干擾和移動設備性能影響）。
                 while(true){
                     try{
                         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
@@ -408,53 +395,47 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
                         while (btnStopStream.getVisibility()==View.VISIBLE){
                             Log.i("send_image", "loop");
-
-                            String ipAddress = "10.10.11.217";
-                            final int port = 8888;
                             Socket socket = new Socket(ipAddress,port);
+
+                            socket.setSoTimeout(30);
 
                             DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
                             BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
                             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
 
-
                             Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888);
                             ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight));
+                            if(buf == null){
+                                Log.e("Err", "buf == null");
+                                continue;
+                            }
                             bitmap.copyPixelsFromBuffer(buf);
                             bitmap.compress(Bitmap.CompressFormat.JPEG, 20, byteStream);
 
                             byte[] imageBytes = byteStream.toByteArray();
 
                             int imageSize = imageBytes .length;
-                            streamBW.write(Integer.toString(imageBytes .length));
+                            streamBW.write(Integer.toString(imageBytes .length)+"\n");
                             streamBW.flush();
-                            Log.i("send_image", Integer.toString(imageBytes .length));
+
+                            Log.i("send_image", Integer.toString(imageBytes .length)+"\n");
                             streamDO.write(imageBytes);
                             streamDO.flush();
                             byteStream.reset();
                             socket.close();
-                            Thread.sleep(32);
+                            Log.i("send_image", "socket close");
                         }
-//                        Thread.interrupted();
-                        Log.i("socket_image", "stop");
-                        break;
                     } catch (UnsupportedEncodingException e) {
                         Log.i("send_image_Unsupported", e.toString());
                     } catch (UnknownHostException e) {
                         Log.i("send_image_Unknown", e.toString());
                     } catch (IOException e) {
                         Log.i("send_image_IOE", e.toString());
-                    } catch (InterruptedException e) {
-                        Log.i("send_image_Interrupted", e.toString());
                     }
                 }
             }
         }.start();
     }
-//    private void sendTextMsg( DataOutput stream, String msg) throws IOException {
-//        byte[] bytes = msg.getBytes();
-//        stream.write(bytes);
-//    }
 
     private void updateCameraMode(){
         runOnUiThread(new Runnable() {
@@ -464,7 +445,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 textViewCameraMode.setText("Mode : "+cameraModeString);
                 if(mIsCameraRecording){
                     btnRecord.setText("Stop");
-                    textViewDebug.setText("Debug : Recording , "+mRecordingSec + " sec");
                 }
                 else{
                     btnRecord.setText("Start");
@@ -507,7 +487,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 back();
                 break;
             case R.id.btn_shoot:
-                textViewDebug.setText("Debug : Shooting .");
                 showToast("Taking picture.");
                 takePicture();
                 break;

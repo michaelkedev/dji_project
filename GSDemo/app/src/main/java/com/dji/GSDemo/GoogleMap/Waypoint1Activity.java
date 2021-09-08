@@ -447,7 +447,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         LinearLayout wayManualLocation = (LinearLayout)getLayoutInflater().inflate(R.layout.dialog_waypoint_manual_location, null);
 
         final TextView manualLatitude = (TextView) wayManualLocation.findViewById(R.id.manualLatitude);
-        final TextView manualLongtitude = (TextView) wayManualLocation.findViewById(R.id.manuaLongtitude);
+        final TextView manualLongitude = (TextView) wayManualLocation.findViewById(R.id.manuaLongtitude);
         TextView textView7 = (TextView) wayManualLocation.findViewById(R.id.textView7);
         TextView textView8 = (TextView) wayManualLocation.findViewById(R.id.textView8);
 
@@ -458,13 +458,13 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
                     public void onClick(DialogInterface dialog, int id) {
 
                         String latitudeString = manualLatitude.getText().toString();
-                        String longtitudeString = manualLongtitude.getText().toString();
+                        String longitudeString = manualLongitude.getText().toString();
 
                         textView7.setText("Lat "+latitudeString);
-                        textView8.setText("Lng "+longtitudeString);
+                        textView8.setText("Lng "+longitudeString);
 
                         double manualLat = Double.parseDouble(latitudeString);
-                        double manualLng = Double.parseDouble(longtitudeString);
+                        double manualLng = Double.parseDouble(longitudeString);
 
 
                         if (isAdd == true){
