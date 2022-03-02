@@ -11,22 +11,31 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraManager;
 import android.net.Uri;
+import android.net.sip.SipSession;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -46,11 +55,14 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
 import dji.common.error.DJIError;
 import dji.common.util.CommonCallbacks;
+import dji.midware.data.model.P3.C;
+import dji.midware.data.model.P3.Pa;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
 import dji.sdk.camera.VideoFeeder;
@@ -62,7 +74,8 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
     private TextureView textureFPV;
     private Button btnBack, btnRecord, btnShoot, btnSwitchMode, btnStartStream, btnStopStream;
-    private TextView textViewCameraMode, textViewIP, textViewTemp;
+    private TextView textViewCameraMode, textViewIP;
+    private ImageView mImgView;
 
     private DJICodecManager mCodeManager;
     private SettingsDefinitions.CameraMode mCameraMode;
@@ -70,7 +83,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     private VideoFeeder.VideoDataListener mVideoDataListener;
 
     private int mRecordingSec;
-    private int tv_wid, tv_hei;
     private byte[] rgba;
     private List<String> missingPermission = new ArrayList<>();
 
@@ -100,7 +112,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         initUI();
         initListener();
         initCamera();
-
         checkAndRequestPermissions();
     }
     @Override
@@ -112,6 +123,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     private void initUI(){
 
         textureFPV = findViewById(R.id.texture_fpv);
+        mImgView = findViewById(R.id.imageView);
 
         btnBack = findViewById(R.id.btn_back);
         btnRecord = findViewById(R.id.btn_record);
@@ -139,17 +151,47 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             showToast("Init Camera.");
         }
     }
+
+    Handler h = new Handler();
+
+    Runnable r = new Runnable() {
+        @Override
+        public void run() {
+            textureFPV.setVisibility(View.INVISIBLE);
+            mImgView.setVisibility(View.VISIBLE);
+
+            Bitmap bitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888);
+            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(1920, 1080));
+            if (buf != null){
+                bitmap.copyPixelsFromBuffer(buf);
+                Canvas canvas = new Canvas(bitmap);
+                Paint paint = new Paint();
+                paint.setStyle(Paint.Style.STROKE);
+                canvas.drawRect(100, 100, 200, 200, paint);
+                mImgView.setImageBitmap(bitmap);
+            }
+
+//            h.postDelayed(r,500);
+            h.post(r);
+        }
+    };
+
+    private void updateImgView(){
+        runOnUiThread(r);
+    }
     private void initListener(){
+//        Set texture view listener
+
         textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
-            public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
-                tv_hei=height;
-                tv_wid=width;
+            public void
+//Create a DJI Decoder when surfaceTexture is available
+            onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
+
                 if(mCodeManager == null){
                     mCodeManager = new DJICodecManager(cameraActivity.this, surface, width, height);
-                }
-                else{
-                    mCodeManager.getRgbaData(width, height);
+                    Log.i("initListener", "CodeManager is null");
+
                 }
             }
 
@@ -169,7 +211,8 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
             @Override
             public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-
+//                textureFPV.getBitmap()
+                Log.i("initListener", "update");
             }
         });
 
@@ -180,17 +223,22 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnStartStream.setOnClickListener(this);
         btnStopStream.setOnClickListener(this);
 
-        mVideoDataListener = new VideoFeeder.VideoDataListener() {
-            @Override
-            public void onReceive(byte[] bytes, int i) {
-                if(mCodeManager != null){
-                    mCodeManager.sendDataToDecoder(bytes, i);
-                }
-            }
-        };
+//        The callback for receiving the raw H264 video data for camera live view
 
-        VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(mVideoDataListener);
+//        mVideoDataListener = new VideoFeeder.VideoDataListener() {
+//            @Override
+//            public void onReceive(byte[] bytes, int i) {
+//                if(mCodeManager != null){
+//                    mCodeManager.sendDataToDecoder(bytes, i);
+//                }
+//            }
+//        };
 
+//        Once the camera is connected and receive video data, it will show on the textureFPV
+
+//        VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(mVideoDataListener);
+
+//        Log.i("OnReceive", "rm Instance");
     }
     private void checkAndRequestPermissions() {
         // Check for permissions
@@ -385,11 +433,11 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 String ipAddress = "10.10.11.62";
                 final int port = 8888;
                 textViewIP.setText(ipAddress+":"+Integer.toString(port));
-
+                String msg ;
 //120 - 130 ms（受拍攝環境干擾和移動設備性能影響）。
                 while(true){
                     try{
-                        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                        ByteArrayOutputStream image = new ByteArrayOutputStream();
 
                         int photoWidth = 1920, photoHeight = 1080;
 
@@ -397,11 +445,12 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                             Log.i("send_image", "loop");
                             Socket socket = new Socket(ipAddress,port);
 
-                            socket.setSoTimeout(30);
+                            socket.setSoTimeout(50);
 
-                            DataOutputStream streamDO = new DataOutputStream(socket.getOutputStream());
-                            BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                            DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
+                            DataInputStream dis = new DataInputStream(socket.getInputStream());
+//                            BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+//                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
 
                             Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888);
                             ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight));
@@ -410,18 +459,41 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                                 continue;
                             }
                             bitmap.copyPixelsFromBuffer(buf);
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 20, byteStream);
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 20, image);
 
-                            byte[] imageBytes = byteStream.toByteArray();
+                            byte[] imageBytes = image.toByteArray();
 
-                            int imageSize = imageBytes .length;
-                            streamBW.write(Integer.toString(imageBytes .length)+"\n");
-                            streamBW.flush();
+//                            int imageSize = imageBytes .length;
+//                            streamBW.write(Integer.toString(imageBytes .length)+"\n");
+//                            streamBW.flush();
 
-                            Log.i("send_image", Integer.toString(imageBytes .length)+"\n");
-                            streamDO.write(imageBytes);
-                            streamDO.flush();
-                            byteStream.reset();
+                            int imageSize = imageBytes.length;
+                            dos.writeBytes(Integer.toString(imageBytes .length)+"\n");
+                            dos.flush();
+                            Log.i("send_image3", Integer.toString(imageBytes .length));
+
+                            Log.i("send_image2", Integer.toString(imageBytes .length)+"\n");
+                            dos.write(imageBytes);
+
+//                            Return image trigger
+
+//                            msg = dis.readLine();
+//                            Log.i("send_image1", msg);
+
+//                            if(msg.equals("ok")){
+//                                Log.i("send_image", "Transmit Done.");
+//                                continue;
+//                            }
+//                            else{
+//                                Log.i("send_image", "Loading.");
+//                                Thread.sleep(1);
+//                            }
+
+                            dis.close();
+                            dos.flush();
+                            dos.close();
+                            buf.clear();
+                            image.reset();
                             socket.close();
                             Log.i("send_image", "socket close");
                         }
@@ -499,10 +571,12 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
             case R.id.btn_Stream:
                 showToast("Images are being transmitted");
-                videoStream();
+//                videoStream();
+                updateImgView();
                 break;
             case R.id.btn_stopStream:
                 stopStream();
+                break;
             default:
                 break;
         }
