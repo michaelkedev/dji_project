@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
+import android.text.Html;
 import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
@@ -30,6 +31,14 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.dji.GSDemo.GoogleMap.fragment.BoundingBox;
+import com.google.gson.Gson;
+import com.google.gson.JsonIOException;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -55,13 +64,17 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
 import dji.common.error.DJIError;
 import dji.common.util.CommonCallbacks;
 import dji.midware.data.model.P3.C;
+import dji.midware.data.model.P3.Ca;
 import dji.midware.data.model.P3.Pa;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.camera.Camera;
@@ -152,36 +165,49 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         }
     }
 
-    Handler h = new Handler();
-
-    Runnable r = new Runnable() {
-        @Override
-        public void run() {
-            textureFPV.setVisibility(View.INVISIBLE);
-            mImgView.setVisibility(View.VISIBLE);
-
-            Bitmap bitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888);
-            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(1920, 1080));
-            if (buf != null){
-                bitmap.copyPixelsFromBuffer(buf);
-                Canvas canvas = new Canvas(bitmap);
-                Paint paint = new Paint();
-                paint.setStyle(Paint.Style.STROKE);
-                canvas.drawRect(100, 100, 200, 200, paint);
-                mImgView.setImageBitmap(bitmap);
+//    Handler h = new Handler();
+//
+//    Runnable updateData = new Runnable() {
+//        @Override
+//        public void run() {
+//            textureFPV.setVisibility(View.INVISIBLE);
+//            mImgView.setVisibility(View.VISIBLE);
+//
+//            Bitmap bitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888); //Get DJI Camera Data
+//            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(1920, 1080));
+//
+////            String boundingBoxJson =
+//            if (buf != null){
+//                bitmap.copyPixelsFromBuffer(buf);
+//                Canvas canvas = new Canvas(bitmap);
+//                Paint paint = new Paint();
+//                paint.setStyle(Paint.Style.STROKE);
+//                canvas.drawRect(100, 100, 200, 200, paint);
+//                mImgView.setImageBitmap(bitmap);
+//            }
+//
+////            h.postDelayed(r,500);
+//            h.post(updateData);
+//        }
+//    };
+    private ArrayList<BoundingBox> getBoundingBoxes (JSONArray array){
+        ArrayList<BoundingBox> boundingBoxes = new ArrayList<>();
+        try{
+            //        BoundingBox current = new Gson().fromJson(array.getJSONObject(i).toString(), BoundingBox.class);
+            for(int i=0;i<array.length();i++){
+                BoundingBox current = new Gson().fromJson(array.getJSONObject(i).toString(), BoundingBox.class);
+                boundingBoxes.add(current);
             }
-
-//            h.postDelayed(r,500);
-            h.post(r);
+        }catch (Exception e){
+            Log.d("cameraActivity_error", e.toString());
         }
-    };
-
-    private void updateImgView(){
-        runOnUiThread(r);
+        return boundingBoxes;
     }
+//    private void updateImgView(Bitmap bitmap, ){
+//        runOnUiThread(updateData);
+//    }
     private void initListener(){
 //        Set texture view listener
-
         textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override
             public void
@@ -211,7 +237,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
             @Override
             public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-//                textureFPV.getBitmap()
                 Log.i("initListener", "update");
             }
         });
@@ -225,18 +250,18 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
 //        The callback for receiving the raw H264 video data for camera live view
 
-//        mVideoDataListener = new VideoFeeder.VideoDataListener() {
-//            @Override
-//            public void onReceive(byte[] bytes, int i) {
-//                if(mCodeManager != null){
-//                    mCodeManager.sendDataToDecoder(bytes, i);
-//                }
-//            }
-//        };
+        mVideoDataListener = new VideoFeeder.VideoDataListener() {
+            @Override
+            public void onReceive(byte[] bytes, int i) {
+                if(mCodeManager != null){
+                    mCodeManager.sendDataToDecoder(bytes, i);
+                }
+            }
+        };
 
 //        Once the camera is connected and receive video data, it will show on the textureFPV
 
-//        VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(mVideoDataListener);
+        VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(mVideoDataListener);
 
 //        Log.i("OnReceive", "rm Instance");
     }
@@ -426,6 +451,9 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     private void videoStream(){
         btnStartStream.setVisibility(View.GONE);
         btnStopStream.setVisibility(View.VISIBLE);
+
+        textureFPV.setVisibility(View.INVISIBLE);
+        mImgView.setVisibility(View.VISIBLE);
         new Thread(){
             @Override
             public void run() {
@@ -433,7 +461,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 String ipAddress = "10.10.11.62";
                 final int port = 8888;
                 textViewIP.setText(ipAddress+":"+Integer.toString(port));
-                String msg ;
 //120 - 130 ms（受拍攝環境干擾和移動設備性能影響）。
                 while(true){
                     try{
@@ -445,64 +472,80 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                             Log.i("send_image", "loop");
                             Socket socket = new Socket(ipAddress,port);
 
-                            socket.setSoTimeout(50);
+//                            socket.setSoTimeout(50);//set Time out
 
                             DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
                             DataInputStream dis = new DataInputStream(socket.getInputStream());
-//                            BufferedWriter streamBW = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-//                            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
 
-                            Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888);
-                            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight));
-                            if(buf == null){
-                                Log.e("Err", "buf == null");
-                                continue;
+                            Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888); //Create a bitmap
+                            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight)); // Put current image into bitmap
+
+                            if(buf != null){
+                                bitmap.copyPixelsFromBuffer(buf);
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 20, image);
+
+                                byte[] imageBytes = image.toByteArray();
+
+                                int imageSize = imageBytes.length;
+                                dos.writeBytes(Integer.toString(imageBytes .length)+"\n");
+                                dos.flush();
+
+                                dos.write(imageBytes);
+
+
+                                //Todo : Don't close socket
+
+
+
+                                final ExecutorService service = Executors.newSingleThreadExecutor();
+
+                                final String msg = dis.readLine();
+                                final JSONArray array = new JSONArray(msg);
+
+                                Log.d("draw", array.toString());
+
+                                dis.close();
+//                                socket.close();
+                                dos.flush();
+                                dos.close();
+                                buf.clear();
+                                image.reset();
+
+                                service.submit(new Runnable(){
+                                    @Override
+                                    public void run() {
+                                        Log.d("drawImageView", "Draw");
+                                        ArrayList<BoundingBox> boundingBoxes = getBoundingBoxes(array);
+
+                                        Bitmap mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+
+                                        final Canvas canvas = new Canvas(mutableBitmap);
+                                        final Paint paint = new Paint();
+                                        paint.setColor(Color.GREEN);
+                                        paint.setStyle(Paint.Style.STROKE);
+                                        for (BoundingBox b:boundingBoxes) {
+                                            canvas.drawRect(b.getX1(), b.getY1(), b.getX2(), b.getY2(), paint);
+                                        }
+                                        runOnUiThread(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                mImgView.setImageBitmap(mutableBitmap);
+                                            }
+                                        });
+                                    }
+                                });
                             }
-                            bitmap.copyPixelsFromBuffer(buf);
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 20, image);
-
-                            byte[] imageBytes = image.toByteArray();
-
-//                            int imageSize = imageBytes .length;
-//                            streamBW.write(Integer.toString(imageBytes .length)+"\n");
-//                            streamBW.flush();
-
-                            int imageSize = imageBytes.length;
-                            dos.writeBytes(Integer.toString(imageBytes .length)+"\n");
-                            dos.flush();
-                            Log.i("send_image3", Integer.toString(imageBytes .length));
-
-                            Log.i("send_image2", Integer.toString(imageBytes .length)+"\n");
-                            dos.write(imageBytes);
-
-//                            Return image trigger
-
-//                            msg = dis.readLine();
-//                            Log.i("send_image1", msg);
-
-//                            if(msg.equals("ok")){
-//                                Log.i("send_image", "Transmit Done.");
-//                                continue;
-//                            }
-//                            else{
-//                                Log.i("send_image", "Loading.");
-//                                Thread.sleep(1);
-//                            }
-
-                            dis.close();
-                            dos.flush();
-                            dos.close();
-                            buf.clear();
-                            image.reset();
-                            socket.close();
-                            Log.i("send_image", "socket close");
                         }
                     } catch (UnsupportedEncodingException e) {
-                        Log.i("send_image_Unsupported", e.toString());
+                        Log.d("send_image_Unsupported", e.toString());
                     } catch (UnknownHostException e) {
-                        Log.i("send_image_Unknown", e.toString());
+                        Log.d("send_image_Unknown", e.toString());
                     } catch (IOException e) {
-                        Log.i("send_image_IOE", e.toString());
+                        Log.d("send_image_IOE", e.toString());
+                    }catch (JsonIOException e){
+                        Log.d("JsonIOE", e.toString());
+                    } catch (JSONException e) {
+                        Log.d("JsonException", e.toString());
                     }
                 }
             }
@@ -571,8 +614,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
             case R.id.btn_Stream:
                 showToast("Images are being transmitted");
-//                videoStream();
-                updateImgView();
+                videoStream();
                 break;
             case R.id.btn_stopStream:
                 stopStream();
