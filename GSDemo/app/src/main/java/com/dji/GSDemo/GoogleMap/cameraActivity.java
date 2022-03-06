@@ -500,8 +500,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
                                     //Todo : Don't close socket
 
-
-
                                     final ExecutorService service = Executors.newSingleThreadExecutor();
 
                                     final String msg = dis.readLine();
@@ -555,28 +553,22 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                             }
                         }
                     } catch (UnsupportedEncodingException e) {
-                        stopStream();
-                        Log.e("socketGG", e.toString());
+                        Log.e("socketGGUnsupport", e.toString());
                         break;
                     } catch (UnknownHostException e) {
-                        stopStream();
-                        Log.e("socketGG", e.toString());
+                        Log.e("socketGGUnknown", e.toString());
                         break;
                     } catch (IOException e) {
-                        stopStream();
-                        Log.e("socketGG", e.toString());
+                        Log.e("socketGGIOE", e.toString());
                         break;
                     }catch (JsonIOException e){
-                        stopStream();
-                        Log.e("socketGG", e.toString());
+                        Log.e("socketGGJSON", e.toString());
                         break;
                     } catch (JSONException e) {
-                        stopStream();
-                        Log.e("socketGG", e.toString());
+                        Log.e("socketGGJSON", e.toString());
                         break;
                     }catch (NullPointerException e){
-                        stopStream();
-                        Log.e("socketGG", e.toString());
+                        Log.e("socketGGNULL", e.toString());
                         break;
                     }
                 }
@@ -655,7 +647,20 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 break;
         }
     }
+    private void streamError(){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                alertMessage("INTERNET ERROR", "Please Check Your Internet");
+                textureFPV.setVisibility(View.VISIBLE);
+                mImgView.setVisibility(View.INVISIBLE);
+                btnStopStream.setVisibility(View.GONE);
+                btnStartStream.setVisibility(View.VISIBLE);
+            }
+        });
+    }
     private void stopStream() {
+        Log.d("socketClose", "Stop Stream");
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -673,7 +678,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             } catch (IOException e) {
                 Log.e("socketClose", e.toString());
             } catch (NullPointerException e){
-                alertMessage("INTERNET ERROR", "Please Check Your Internet");
                 Log.e("socketClose", e.toString());
             }
     }
@@ -682,7 +686,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             @Override
             public void run() {
                 AlertDialog.Builder dialog = new AlertDialog.Builder(cameraActivity.this);
-                dialog.setCancelable(true);
+                dialog.setCancelable(false);
                 dialog.setTitle(title);
                 dialog.setMessage(msg);
                 dialog.setNegativeButton("GOT IT.", new DialogInterface.OnClickListener() {
