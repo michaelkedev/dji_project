@@ -1,6 +1,7 @@
 package com.dji.GSDemo.GoogleMap;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -8,6 +9,7 @@ import androidx.core.content.ContextCompat;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -22,6 +24,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.provider.MediaStore;
 import android.text.Html;
 import android.util.Log;
@@ -73,6 +77,7 @@ import dji.common.camera.SettingsDefinitions;
 import dji.common.camera.SystemState;
 import dji.common.error.DJIError;
 import dji.common.util.CommonCallbacks;
+import dji.logic.album.model.DJIAlbumPullErrorType;
 import dji.midware.data.model.P3.C;
 import dji.midware.data.model.P3.Ca;
 import dji.midware.data.model.P3.Pa;
@@ -84,6 +89,8 @@ import dji.sdk.sdkmanager.DJISDKManager;
 
 
 public class cameraActivity extends AppCompatActivity implements View.OnClickListener {
+
+    private Socket socket;
 
     private TextureView textureFPV;
     private Button btnBack, btnRecord, btnShoot, btnSwitchMode, btnStartStream, btnStopStream;
@@ -237,7 +244,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
             @Override
             public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-                Log.i("initListener", "update");
+//                Log.i("initListener", "update");
             }
         });
 
@@ -457,10 +464,8 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         new Thread(){
             @Override
             public void run() {
-//                String ipAddress = "10.10.131.190";
                 String ipAddress = "10.10.11.62";
                 final int port = 8888;
-                textViewIP.setText(ipAddress+":"+Integer.toString(port));
 //120 - 130 ms（受拍攝環境干擾和移動設備性能影響）。
                 while(true){
                     try{
@@ -470,82 +475,109 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
                         while (btnStopStream.getVisibility()==View.VISIBLE){
                             Log.i("send_image", "loop");
-                            Socket socket = new Socket(ipAddress,port);
-
+                            socket = new Socket(ipAddress,port);
 //                            socket.setSoTimeout(50);//set Time out
 
-                            DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
-                            DataInputStream dis = new DataInputStream(socket.getInputStream());
+                            if(socket.isConnected()){
+                                DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
+                                DataInputStream dis = new DataInputStream(socket.getInputStream());
 
-                            Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888); //Create a bitmap
-                            ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight)); // Put current image into bitmap
+                                Bitmap bitmap = Bitmap.createBitmap(photoWidth, photoHeight, Bitmap.Config.ARGB_8888); //Create a bitmap
+                                ByteBuffer buf = ByteBuffer.wrap(mCodeManager.getRgbaData(photoWidth, photoHeight)); // Put current image into bitmap
 
-                            if(buf != null){
-                                bitmap.copyPixelsFromBuffer(buf);
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 20, image);
+                                if(buf != null){
+                                    bitmap.copyPixelsFromBuffer(buf);
+                                    bitmap.compress(Bitmap.CompressFormat.JPEG, 20, image);
 
-                                byte[] imageBytes = image.toByteArray();
+                                    byte[] imageBytes = image.toByteArray();
 
-                                int imageSize = imageBytes.length;
-                                dos.writeBytes(Integer.toString(imageBytes .length)+"\n");
-                                dos.flush();
+                                    int imageSize = imageBytes.length;
+                                    dos.writeBytes(Integer.toString(imageBytes .length)+"\n");
+                                    dos.flush();
 
-                                dos.write(imageBytes);
-
-
-                                //Todo : Don't close socket
+                                    dos.write(imageBytes);
 
 
+                                    //Todo : Don't close socket
 
-                                final ExecutorService service = Executors.newSingleThreadExecutor();
 
-                                final String msg = dis.readLine();
-                                final JSONArray array = new JSONArray(msg);
 
-                                Log.d("draw", array.toString());
+                                    final ExecutorService service = Executors.newSingleThreadExecutor();
 
-                                dis.close();
-//                                socket.close();
-                                dos.flush();
-                                dos.close();
-                                buf.clear();
-                                image.reset();
+                                    final String msg = dis.readLine();
+                                    final JSONArray array = new JSONArray(msg);
 
-                                service.submit(new Runnable(){
-                                    @Override
-                                    public void run() {
-                                        Log.d("drawImageView", "Draw");
-                                        ArrayList<BoundingBox> boundingBoxes = getBoundingBoxes(array);
+                                    Log.d("draw", array.toString());
 
-                                        Bitmap mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+                                    dis.close();
+                                    dos.flush();
+                                    dos.close();
+                                    buf.clear();
+                                    image.reset();
+                                    socket.close();
+                                    Log.d("socket", "Socket Close");
+                                    service.submit(new Runnable(){
+                                        @Override
+                                        public void run() {
+                                            Log.d("drawImageView", "Draw");
+                                            ArrayList<BoundingBox> boundingBoxes = getBoundingBoxes(array);
 
-                                        final Canvas canvas = new Canvas(mutableBitmap);
-                                        final Paint paint = new Paint();
-                                        paint.setColor(Color.GREEN);
-                                        paint.setStyle(Paint.Style.STROKE);
-                                        for (BoundingBox b:boundingBoxes) {
-                                            canvas.drawRect(b.getX1(), b.getY1(), b.getX2(), b.getY2(), paint);
-                                        }
-                                        runOnUiThread(new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                mImgView.setImageBitmap(mutableBitmap);
+                                            Bitmap mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true);
+
+                                            String[] classes = {"Head", "Helmet", "Unknown", "Person"};
+                                            final Canvas canvas = new Canvas(mutableBitmap);
+                                            final Paint paint = new Paint();
+//                                        Paint
+                                            paint.setStyle(Paint.Style.STROKE);
+                                            paint.setTextSize(40);
+                                            paint.setStrokeWidth(3);
+                                            for (BoundingBox b:boundingBoxes) {
+                                                float floatX1 = (float)b.getX1()-10f;
+                                                float floatY1 = (float)b.getY1();
+                                                if(b.getId()==0){
+                                                    paint.setColor(Color.RED);
+                                                }else {
+                                                    paint.setColor(Color.GREEN);
+                                                }
+                                                canvas.drawText(classes[b.getId()], floatX1, floatY1, paint);
+                                                canvas.drawRect(b.getX1(), b.getY1(), b.getX2(), b.getY2(), paint);
                                             }
-                                        });
-                                    }
-                                });
+                                            runOnUiThread(new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    mImgView.setImageBitmap(mutableBitmap);
+                                                }
+                                            });
+                                        }
+                                    });
+                            }
+
                             }
                         }
                     } catch (UnsupportedEncodingException e) {
-                        Log.d("send_image_Unsupported", e.toString());
+                        stopStream();
+                        Log.e("socketGG", e.toString());
+                        break;
                     } catch (UnknownHostException e) {
-                        Log.d("send_image_Unknown", e.toString());
+                        stopStream();
+                        Log.e("socketGG", e.toString());
+                        break;
                     } catch (IOException e) {
-                        Log.d("send_image_IOE", e.toString());
+                        stopStream();
+                        Log.e("socketGG", e.toString());
+                        break;
                     }catch (JsonIOException e){
-                        Log.d("JsonIOE", e.toString());
+                        stopStream();
+                        Log.e("socketGG", e.toString());
+                        break;
                     } catch (JSONException e) {
-                        Log.d("JsonException", e.toString());
+                        stopStream();
+                        Log.e("socketGG", e.toString());
+                        break;
+                    }catch (NullPointerException e){
+                        stopStream();
+                        Log.e("socketGG", e.toString());
+                        break;
                     }
                 }
             }
@@ -624,10 +656,45 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         }
     }
     private void stopStream() {
-            btnStopStream.setVisibility(View.GONE);
-            btnStartStream.setVisibility(View.VISIBLE);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                textureFPV.setVisibility(View.VISIBLE);
+                mImgView.setVisibility(View.INVISIBLE);
+                btnStopStream.setVisibility(View.GONE);
+                btnStartStream.setVisibility(View.VISIBLE);
+            }
+        });
+            try{
+                if(socket.isConnected())
+                    socket.close();
+                else
+                    Log.d("socketClose", "Socket is not connected");
+            } catch (IOException e) {
+                Log.e("socketClose", e.toString());
+            } catch (NullPointerException e){
+                alertMessage("INTERNET ERROR", "Please Check Your Internet");
+                Log.e("socketClose", e.toString());
+            }
     }
-
+    private void alertMessage(String title, String msg){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                AlertDialog.Builder dialog = new AlertDialog.Builder(cameraActivity.this);
+                dialog.setCancelable(true);
+                dialog.setTitle(title);
+                dialog.setMessage(msg);
+                dialog.setNegativeButton("GOT IT.", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                    }
+                });
+                final AlertDialog alert = dialog.create();
+                alert.show();
+            }
+        });
+    }
     //    Back to waypoint1 page
     private void back(){
         startActivity(cameraActivity.this, Waypoint1Activity.class);
