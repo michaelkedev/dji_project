@@ -61,7 +61,7 @@ import dji.sdk.products.Aircraft;
 import dji.sdk.sdkmanager.DJISDKManager;
 import dji.sdk.useraccount.UserAccountManager;
 
-public class Waypoint1Activity extends FragmentActivity implements View.OnClickListener, GoogleMap.OnMapClickListener, OnMapReadyCallback {
+public class Waypoint1Activity extends FragmentActivity implements View.OnClickListener, GoogleMap.OnMapClickListener, OnMapReadyCallback, GoogleMap.OnMyLocationButtonClickListener {
 
     protected static final String TAG = "GSDemoActivity";
     protected static int pointCount = 1;
@@ -324,15 +324,28 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     private void updateDroneLocation() {
         double lat, lng;
         LocationManager lm = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+
         Location location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-//        lat = location.getLatitude();
-//        lng = location.getLongitude();
-        droneLocationLat = location.getLatitude();
-        droneLocationLng = location.getLongitude();
+        if(location!=null){
+            droneLocationLat = location.getLatitude();
+            droneLocationLng = location.getLongitude();
+
+        }
+
         LatLng pos = new LatLng(droneLocationLat, droneLocationLng);
-//        current_position.setText("Latitude : " + doubleToString(droneLocationLat)+" , Longtitude : " + doubleToString(droneLocationLng));
         //Create MarkerOptions object
-        //Create MarkerOptions object
+
         final MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(pos);
         markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.aircraft));
@@ -685,15 +698,26 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             gMap = googleMap;
             setUpMap();
         }
-        LatLng shenzhen = new LatLng(22.5362, 113.9454);
-        gMap.addMarker(new MarkerOptions().position(shenzhen).title("Marker in Shenzhen"));
-        gMap.moveCamera(CameraUpdateFactory.newLatLng(shenzhen));
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            googleMap.setMyLocationEnabled(true);
-            googleMap.getUiSettings().setMyLocationButtonEnabled(true);
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
+                        }
+                        , 1);
+                return;
+            }
             return;
         }
-
+        googleMap.setMyLocationEnabled(true);
+        googleMap.getUiSettings().setMyLocationButtonEnabled(true);
+        googleMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
     }
+
+    @Override
+    public boolean onMyLocationButtonClick() {
+        updateDroneLocation();
+        return false;
+    }
+
 
 }
