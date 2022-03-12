@@ -148,7 +148,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         btnBack = findViewById(R.id.btn_back);
         btnRecord = findViewById(R.id.btn_record);
         btnShoot = findViewById(R.id.btn_shoot);
-        btnSwitchMode = findViewById(R.id.btn_swtichMode);
+        btnSwitchMode = findViewById(R.id.btn_switchMode);
         btnStartStream = findViewById(R.id.btn_Stream);
         btnStopStream = findViewById(R.id.btn_stopStream);
 
@@ -456,11 +456,11 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     private void videoStream(){
-        btnStartStream.setVisibility(View.GONE);
+        btnStartStream.setVisibility(View.INVISIBLE);
         btnStopStream.setVisibility(View.VISIBLE);
-
         textureFPV.setVisibility(View.INVISIBLE);
         mImgView.setVisibility(View.VISIBLE);
+
         new Thread(){
             @Override
             public void run() {
@@ -475,7 +475,9 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
 
                         while (btnStopStream.getVisibility()==View.VISIBLE){
                             Log.i("send_image", "loop");
+
                             socket = new Socket(ipAddress,port);
+
 //                            socket.setSoTimeout(50);//set Time out
 
                             if(socket.isConnected()){
@@ -575,7 +577,6 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
             }
         }.start();
     }
-
     private void updateCameraMode(){
         runOnUiThread(new Runnable() {
             @Override
@@ -633,7 +634,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
                 showToast("Recording");
                 record();
                 break;
-            case R.id.btn_swtichMode:
+            case R.id.btn_switchMode:
                 final Camera camera = getCamera();
                 setCameraMode(camera, SettingsDefinitions.CameraMode.SHOOT_PHOTO);
             case R.id.btn_Stream:

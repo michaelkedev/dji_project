@@ -76,7 +76,7 @@
 
 
     <Button
-        android:id="@+id/btn_swtichMode"
+        android:id="@+id/btn_switchMode"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -84,7 +84,7 @@
         android:text="Mode"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_shoot" />
-
+<!--@+id/btn_Stream-->
     <Button
         android:id="@+id/btn_Stream"
         android:layout_width="wrap_content"
@@ -93,7 +93,7 @@
         android:layout_marginTop="12dp"
         android:text="Stream"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_swtichMode" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_switchMode" />
 
     <Button
         android:id="@+id/btn_stopStream"
@@ -102,8 +102,8 @@
         android:layout_marginStart="16dp"
         android:layout_marginTop="12dp"
         android:text="Stop Stream"
-        android:visibility="gone"
+        android:visibility="invisible"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btn_swtichMode" />
+        app:layout_constraintTop_toBottomOf="@+id/btn_switchMode" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

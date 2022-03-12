@@ -61,7 +61,7 @@ import dji.sdk.products.Aircraft;
 import dji.sdk.sdkmanager.DJISDKManager;
 import dji.sdk.useraccount.UserAccountManager;
 
-public class Waypoint1Activity extends FragmentActivity implements View.OnClickListener, GoogleMap.OnMapClickListener, OnMapReadyCallback, GoogleMap.OnMyLocationButtonClickListener {
+public class Waypoint1Activity extends FragmentActivity implements View.OnClickListener, GoogleMap.OnMapClickListener, OnMapReadyCallback, GoogleMap.OnMyLocationButtonClickListener, GoogleMap.OnMarkerClickListener {
 
     protected static final String TAG = "GSDemoActivity";
     protected static int pointCount = 1;
@@ -75,7 +75,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     private TextView current_position, point_position;
     private Button camera_page;
 
-    private boolean isAdd = false;
+    private boolean isAdd = true;
 
     private double droneLocationLat = 181, droneLocationLng = 181;
     private final Map<Integer, Marker> mMarkers = new ConcurrentHashMap<Integer, Marker>();
@@ -158,7 +158,6 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         // When the compile and target version is higher than 22, please request the
         // following permissions at runtime to ensure the
         // SDK work well.
@@ -296,6 +295,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         gMap.setOnMapClickListener(this);// add the listener for click for map object
     }
 
+
     @Override
     public void onMapClick(LatLng point) {
         if (isAdd == true) {
@@ -335,12 +335,10 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             // for ActivityCompat#requestPermissions for more details.
             return;
         }
-
         Location location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         if(location!=null){
             droneLocationLat = location.getLatitude();
             droneLocationLng = location.getLongitude();
-
         }
 
         LatLng pos = new LatLng(droneLocationLat, droneLocationLng);
@@ -367,7 +365,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     private void markWaypoint(LatLng point) {
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(point);
-        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory. HUE_BLUE));
         markerOptions.title("Point" + pointCount).snippet("Latitude : " + doubleToString(point.latitude) + ", " + doubleToString(point.longitude));
         pointCount++;
         Marker marker = gMap.addMarker(markerOptions);
@@ -696,6 +694,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     public void onMapReady(GoogleMap googleMap) {
         if (gMap == null) {
             gMap = googleMap;
+            gMap.setOnMarkerClickListener(this);
             setUpMap();
         }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -708,16 +707,68 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             }
             return;
         }
+        defaultMission();
+        gMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(LatLng point) {
+                if (isAdd == true) {
+                    markWaypoint(point);
+                    point_position.setText("Point Position \n lat : " + point.latitude + " long : " + point.longitude);
+                    Waypoint mWaypoint = new Waypoint(point.latitude, point.longitude, altitude);
+                    //Add Waypoints to Waypoint arraylist;
+                    if (waypointMissionBuilder != null) {
+                        waypointList.add(mWaypoint);
+                        waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
+                    } else {
+                        waypointMissionBuilder = new WaypointMission.Builder();
+                        waypointList.add(mWaypoint);
+                        waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
+                    }
+                } else {
+                    setResultToToast("Cannot Add Waypoint");
+                }
+            }
+        });
         googleMap.setMyLocationEnabled(true);
         googleMap.getUiSettings().setMyLocationButtonEnabled(true);
         googleMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-    }
 
+    }
+    private void alertMessage(String title, String msg){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                androidx.appcompat.app.AlertDialog.Builder dialog = new androidx.appcompat.app.AlertDialog.Builder(Waypoint1Activity.this);
+                dialog.setCancelable(false);
+                dialog.setTitle(title);
+                dialog.setMessage(msg);
+                dialog.setNegativeButton("GOT IT.", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                    }
+                });
+                final androidx.appcompat.app.AlertDialog alert = dialog.create();
+                alert.show();
+            }
+        });
+    }
+//    24.11451, 120.72873
+    private void defaultMission(){
+
+        markWaypoint(new LatLng(24.14452, 120.72873));
+        markWaypoint(new LatLng(24.14451, 120.72895));
+        markWaypoint(new LatLng(24.14468, 120.72873));
+        markWaypoint(new LatLng(24.14470, 120.72893));
+    }
     @Override
     public boolean onMyLocationButtonClick() {
         updateDroneLocation();
         return false;
     }
 
-
+    @Override
+    public boolean onMarkerClick(final Marker marker) {
+        showSettingDialog();
+        return false;
+    }
 }
