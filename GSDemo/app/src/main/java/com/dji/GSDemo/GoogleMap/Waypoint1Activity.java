@@ -20,6 +20,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -68,12 +69,9 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
     private GoogleMap gMap;
 
-    private Button locate, add, clear;
-    private Button config, upload, start, stop;
-    private Button manualLocation;
     private TextView ConnectStatusTextView;
     private TextView current_position, point_position;
-    private Button camera_page;
+    private ImageView mImgViewUpload, mImgViewStart, mImgViewStop, mImgViewCameraPage, mImgViewClear;
 
     private boolean isAdd = true;
 
@@ -130,37 +128,27 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
 
     private void initUI() {
 
-        locate = (Button) findViewById(R.id.locate);
-        add = (Button) findViewById(R.id.add);
-        clear = (Button) findViewById(R.id.clear);
-        config = (Button) findViewById(R.id.config);
-        upload = (Button) findViewById(R.id.upload);
-        start = (Button) findViewById(R.id.start);
-        stop = (Button) findViewById(R.id.stop);
-        manualLocation = (Button) findViewById(R.id.manualLocation);
+        mImgViewUpload = (ImageView) findViewById(R.id.iv_upload);
+        mImgViewStart = (ImageView) findViewById(R.id.iv_start);
+        mImgViewStop = (ImageView) findViewById(R.id.iv_stop);
+        mImgViewCameraPage = (ImageView) findViewById(R.id.iv_camera);
+        mImgViewClear = (ImageView) findViewById(R.id.iv_clear);
+
 //        Display Current Position
         current_position = (TextView) findViewById(R.id.current_position);
         point_position = (TextView) findViewById(R.id.point_position);
-        camera_page = (Button) findViewById(R.id.btn_camera);
-
-        locate.setOnClickListener(this);
-        add.setOnClickListener(this);
-        clear.setOnClickListener(this);
-        config.setOnClickListener(this);
-        upload.setOnClickListener(this);
-        start.setOnClickListener(this);
-        stop.setOnClickListener(this);
-        camera_page.setOnClickListener(this);
-        manualLocation.setOnClickListener(this);
-
     }
-
+    private void initListener(){
+        mImgViewUpload.setOnClickListener(this);
+        mImgViewStart.setOnClickListener(this);
+        mImgViewStop.setOnClickListener(this);
+        mImgViewCameraPage.setOnClickListener(this);
+        mImgViewClear.setOnClickListener(this);
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
-        // When the compile and target version is higher than 22, please request the
-        // following permissions at runtime to ensure the
-        // SDK work well.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.VIBRATE,
@@ -181,6 +169,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         registerReceiver(mReceiver, filter);
 
         initUI();
+        initListener();
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -381,16 +370,22 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
-            case R.id.locate: {
+            case R.id.locate:
                 updateDroneLocation();
                 cameraUpdate(); // Locate the drone's place
                 break;
-            }
-            case R.id.add: {
-                enableDisableAdd();
+            case R.id.iv_stop:
+                stopWaypointMission();
                 break;
-            }
-            case R.id.clear: {
+            case R.id.iv_start:
+                startWaypointMission();
+                break;
+            case R.id.iv_upload:
+                uploadWayPointMission();
+                break;
+            case R.id.iv_camera:
+                switchCameraPage();
+            case R.id.iv_clear:{
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -398,33 +393,15 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
                     }
 
                 });
-                waypointList.clear();
-                waypointMissionBuilder.waypointList(waypointList);
-                updateDroneLocation();
-                break;
-            }
-            case R.id.config: {
-                showSettingDialog();
-                break;
-            }
-            case R.id.manualLocation: {
-                showManualLocation();
-                break;
-            }
-            case R.id.upload: {
-                uploadWayPointMission();
-                break;
-            }
-            case R.id.start: {
-                startWaypointMission();
-                break;
-            }
-            case R.id.stop: {
-                stopWaypointMission();
-                break;
-            }
-            case R.id.btn_camera: {
-                switchCameraPage();
+                try {
+                    if(waypointList!=null){
+                        waypointList.clear();
+                        waypointMissionBuilder.waypointList(waypointList);
+                    }
+                    updateDroneLocation();
+                }catch (Exception e){
+                    Log.e("Err_clear", e.toString());
+                }
                 break;
             }
             default:
@@ -449,15 +426,15 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         gMap.moveCamera(cu);
     }
 
-    private void enableDisableAdd() {
-        if (isAdd == false) {
-            isAdd = true;
-            add.setText("Exit");
-        } else {
-            isAdd = false;
-            add.setText("Add");
-        }
-    }
+//    private void enableDisableAdd() {
+//        if (isAdd == false) {
+//            isAdd = true;
+//            add.setText("Exit");
+//        } else {
+//            isAdd = false;
+//            add.setText("Add");
+//        }
+//    }
 
     private void showManualLocation() {
 
@@ -707,7 +684,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
             }
             return;
         }
-        defaultMission();
+//        defaultMission();
         gMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng point) {
