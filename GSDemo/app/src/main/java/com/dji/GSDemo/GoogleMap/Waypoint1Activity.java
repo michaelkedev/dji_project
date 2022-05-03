@@ -355,8 +355,7 @@ public class Waypoint1Activity extends FragmentActivity implements View.OnClickL
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(point);
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory. HUE_BLUE));
-        markerOptions.title("Point" + pointCount).snippet("Latitude : " + doubleToString(point.latitude) + ", " + doubleToString(point.longitude));
-        pointCount++;
+        markerOptions.title("Point" + pointCount).snippet("Latitude : " + doubleToString(point.latitude) + ", " + doubleToString(point.longitude));        pointCount++;
         Marker marker = gMap.addMarker(markerOptions);
         mMarkers.put(mMarkers.size(), marker);
     }

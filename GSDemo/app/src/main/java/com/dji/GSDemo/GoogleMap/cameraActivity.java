@@ -210,9 +210,7 @@ public class cameraActivity extends AppCompatActivity implements View.OnClickLis
         }
         return boundingBoxes;
     }
-//    private void updateImgView(Bitmap bitmap, ){
-//        runOnUiThread(updateData);
-//    }
+
     private void initListener(){
 //        Set texture view listener
         textureFPV.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
