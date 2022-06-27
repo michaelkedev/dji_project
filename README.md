@@ -8,4 +8,8 @@
 
 ## 測試影片
 ### 航點任務
-https://youtu.be/9hE4pFr4Hh8
+- https://youtu.be/9hE4pFr4Hh8
+- https://youtube.com/shorts/6kmuzln1oTk?feature=share
+
+### YOLO
+- https://youtu.be/GSCeTcVrmF4
