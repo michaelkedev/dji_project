@@ -13,3 +13,10 @@
 
 ### YOLO
 - https://youtu.be/GSCeTcVrmF4
+
+## 專題報告
+### PPT
+- https://1drv.ms/p/s!Ap4CME1F-6DjkbRKwGVZNB1_eVeSFw?e=6EKMmd
+
+### 成果報告
+- https://1drv.ms/b/s!Ap4CME1F-6DjkbRJmy5ShYz4n7Hc9Q?e=LprdH0
